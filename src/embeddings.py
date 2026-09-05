@@ -3,6 +3,7 @@ import requests
 import torch
 from typing import List, Union, Tuple
 from PIL import Image
+# pyrefly: ignore [missing-import]
 from langchain_core.embeddings import Embeddings
 from src import config
 
@@ -76,7 +77,15 @@ class LocalCLIPEmbeddings:
 
     def _load_model(self):
         if self._model is None:
+            # pyrefly: ignore [missing-import]
             import clip
+            import torch
+            # Limit CPU threads to prevent memory explosion on cloud hosting
+            if self.device == "cpu":
+                try:
+                    torch.set_num_threads(1)
+                except Exception:
+                    pass
             self._model, self._preprocess = clip.load("ViT-B/32", device=self.device)
             self._model.eval()
         return self._model, self._preprocess
@@ -84,20 +93,31 @@ class LocalCLIPEmbeddings:
     def embed_image(self, image_input: Union[str, Image.Image]) -> List[float]:
         """Generate 512-dim normalized vector for an image file path or PIL Image."""
         import torch
+        import gc
         model, preprocess = self._load_model()
         if isinstance(image_input, str):
             image = Image.open(image_input).convert("RGB")
         else:
             image = image_input.convert("RGB")
+
+        # Downscale large user images to prevent high RAM consumption
+        if image.width > 512 or image.height > 512:
+            image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+
         image_tensor = preprocess(image).unsqueeze(0).to(self.device)
-        with torch.no_grad():
+        with torch.inference_mode():
             image_features = model.encode_image(image_tensor)
             image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        return image_features.cpu().squeeze().tolist()
+            result = image_features.cpu().squeeze().tolist()
+
+        del image_tensor, image_features
+        gc.collect()
+        return result
 
     def embed_images_batch(self, image_inputs: List[Union[str, Image.Image]], batch_size: int = 16) -> List[List[float]]:
         """Batch encode images."""
         import torch
+        import gc
         model, preprocess = self._load_model()
         all_features = []
         for i in range(0, len(image_inputs), batch_size):
@@ -108,21 +128,26 @@ class LocalCLIPEmbeddings:
                     pil_img = Image.open(img).convert("RGB")
                 else:
                     pil_img = img.convert("RGB")
+                if pil_img.width > 512 or pil_img.height > 512:
+                    pil_img.thumbnail((512, 512), Image.Resampling.LANCZOS)
                 tensors.append(preprocess(pil_img))
             batch_tensor = torch.stack(tensors).to(self.device)
-            with torch.no_grad():
+            with torch.inference_mode():
                 features = model.encode_image(batch_tensor)
                 features = features / features.norm(dim=-1, keepdim=True)
             all_features.extend(features.cpu().tolist())
+            del batch_tensor, features
+            gc.collect()
         return all_features
 
     def embed_text_query(self, text: str) -> List[float]:
         """Encode text query into CLIP joint embedding space for cross-modal text-to-image matching."""
+        # pyrefly: ignore [missing-import]
         import clip
         import torch
         model, _ = self._load_model()
         text_tokens = clip.tokenize([text], truncate=True).to(self.device)
-        with torch.no_grad():
+        with torch.inference_mode():
             text_features = model.encode_text(text_tokens)
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         return text_features.cpu().squeeze().tolist()
@@ -135,13 +160,18 @@ class LocalCLIPEmbeddings:
         Zero-shot classification to detect garment category and gender from an apparel photo.
         Returns (category, category_confidence, gender, gender_confidence).
         """
+        # pyrefly: ignore [missing-import]
         import clip
         import torch
+        import gc
         model, preprocess = self._load_model()
         if isinstance(image_input, str):
             image = Image.open(image_input).convert("RGB")
         else:
             image = image_input.convert("RGB")
+
+        if image.width > 512 or image.height > 512:
+            image.thumbnail((512, 512), Image.Resampling.LANCZOS)
 
         image_tensor = preprocess(image).unsqueeze(0).to(self.device)
 
@@ -160,7 +190,7 @@ class LocalCLIPEmbeddings:
             "a photo of women clothing, women apparel, or a woman"
         ]
 
-        with torch.no_grad():
+        with torch.inference_mode():
             cat_tokens = clip.tokenize(cat_prompts).to(self.device)
             cat_logits, _ = model(image_tensor, cat_tokens)
             cat_probs = cat_logits.softmax(dim=-1).squeeze().tolist()
@@ -172,11 +202,15 @@ class LocalCLIPEmbeddings:
         best_cat_idx = int(torch.tensor(cat_probs).argmax())
         best_gender_idx = int(torch.tensor(gender_probs).argmax())
 
+        del image_tensor, cat_tokens, gender_tokens
+        gc.collect()
+
         return (
             categories[best_cat_idx],
             float(cat_probs[best_cat_idx]),
             genders[best_gender_idx],
             float(gender_probs[best_gender_idx])
         )
+
 
 

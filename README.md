@@ -92,7 +92,12 @@ To initialize the NeonDB database with `pgvector`, build the HNSW indexes, compu
 ```powershell
 .venv\Scripts\streamlit.exe run app.py
 ```
-Open your browser at `http://localhost:8501`.
+---
+
+## 🌐 Deploying to Render
+1. **Build Command**: `pip install -r requirements.txt && python download_model.py`
+2. **Start Command**: `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`
+3. **Environment Variables**: Add your `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `NEON_DATABASE_URL`, and `PYTHON_VERSION=3.11.9`.
 
 ---
 
@@ -100,5 +105,6 @@ Open your browser at `http://localhost:8501`.
 To prevent Render free/inactivity sleep, point **UptimeRobot** (HTTP GET every 5 minutes) to:
 - `https://<your-app-url>/health`
 - OR native Streamlit health check: `https://<your-app-url>/_stcore/health`
+
 
 

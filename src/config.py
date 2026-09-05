@@ -11,6 +11,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 # Use Windows native system SSL certificate store (handles corporate proxy/Zscaler/Capgemini root certs)
 try:
+    # pyrefly: ignore [missing-import]
     import truststore
     truststore.inject_into_ssl()
 except Exception:

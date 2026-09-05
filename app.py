@@ -277,24 +277,28 @@ def main():
 
         if st.button("Find Matching Items", type="primary", disabled=img_to_search is None):
             with st.spinner("Finding visually similar apparel..."):
-                result = pipeline.query_image(
-                    image_input=img_to_search,
-                    manual_filters=manual_filters,
-                    top_k=top_k
-                )
+                try:
+                    result = pipeline.query_image(
+                        image_input=img_to_search,
+                        manual_filters=manual_filters,
+                        top_k=top_k
+                    )
 
-            if result.get("answer"):
-                header = "**Visual Match Summary:**" if result.get("products") else "**Catalog Notice:**"
-                with st.container(border=True):
-                    st.markdown(f"{header}\n\n{result['answer']}")
+                    if result.get("answer"):
+                        header = "**Visual Match Summary:**" if result.get("products") else "**Catalog Notice:**"
+                        with st.container(border=True):
+                            st.markdown(f"{header}\n\n{result['answer']}")
 
-            products = result.get("products", [])
-            if products:
-                st.subheader(f"Visually Similar Items ({len(products)})")
-                col1, col2 = st.columns(2)
-                for idx, p in enumerate(products):
-                    with col1 if idx % 2 == 0 else col2:
-                        render_product_card(p)
+                    products = result.get("products", [])
+                    if products:
+                        st.subheader(f"Visually Similar Items ({len(products)})")
+                        col1, col2 = st.columns(2)
+                        for idx, p in enumerate(products):
+                            with col1 if idx % 2 == 0 else col2:
+                                render_product_card(p)
+                except Exception as e:
+                    st.error(f"⚠️ Unable to complete visual search: {e}")
+
 
 
 
