@@ -1,4 +1,6 @@
 import os
+import sys
+import json
 import streamlit as st
 from PIL import Image
 from pathlib import Path
@@ -7,6 +9,35 @@ from typing import Dict, Any, List
 from src import config
 from src import db
 from src.rag import ProductRAGPipeline
+
+# Attach /health endpoint to Streamlit's underlying Tornado server
+def _register_health_endpoint():
+    try:
+        from streamlit.web.server.server import Server
+        import tornado.web
+
+        class HealthHandler(tornado.web.RequestHandler):
+            def get(self):
+                self.set_header("Content-Type", "application/json")
+                self.set_header("Cache-Control", "no-cache")
+                self.write(json.dumps({"status": "ok", "service": "Product_Search_RAG"}))
+
+            def head(self):
+                self.set_status(200)
+
+        server = Server.get_current()
+        if server and hasattr(server, "_app") and server._app:
+            server._app.add_handlers(r".*", [(r"/health", HealthHandler)])
+    except Exception:
+        pass
+
+_register_health_endpoint()
+
+# Fast-path for query parameter health checks (e.g. /?health=1 or /?route=health)
+if st.query_params.get("health") is not None or st.query_params.get("route") == "health":
+    st.json({"status": "ok", "service": "Product_Search_RAG"})
+    st.stop()
+
 
 # Page Configuration
 st.set_page_config(

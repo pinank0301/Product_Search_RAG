@@ -94,3 +94,11 @@ To initialize the NeonDB database with `pgvector`, build the HNSW indexes, compu
 ```
 Open your browser at `http://localhost:8501`.
 
+---
+
+## 💓 Health Check & Uptime Monitoring
+To prevent Render free/inactivity sleep, point **UptimeRobot** (HTTP GET every 5 minutes) to:
+- `https://<your-app-url>/health`
+- OR native Streamlit health check: `https://<your-app-url>/_stcore/health`
+
+
